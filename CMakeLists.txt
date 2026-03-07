@@ -17,55 +17,35 @@ find_package(CUDAToolkit REQUIRED)
 find_package(Protobuf REQUIRED)
 
 # --------------------------------------------------------------------------
-# Generate ONNX protobuf bindings
+# Generate ONNX protobuf bindings (used by tinyinfer_model)
 # --------------------------------------------------------------------------
 protobuf_generate_cpp(ONNX_PROTO_SRCS ONNX_PROTO_HDRS
     third_party/onnx/onnx.proto
 )
 
 # --------------------------------------------------------------------------
-# tinyinfer static library
+# Modules (dependency order)
 # --------------------------------------------------------------------------
-add_library(tinyinfer STATIC
-    ${ONNX_PROTO_SRCS}
-    src/tensor.cpp
-    src/graph.cpp
-    src/onnx_parser.cpp
-    src/model.cpp
-    src/op_registry.cpp
-    src/executor.cpp
-    src/profiler.cpp
-    src/mnist_loader.cpp
-    src/evaluator.cpp
-    src/ops/gemm_op.cpp
-    src/ops/relu_op.cpp
-    src/ops/softmax_op.cpp
-    src/ops/gemm_kernel.cu
-    src/ops/relu_kernel.cu
-    src/ops/softmax_kernel.cu
-)
+include(CTest)
 
-target_include_directories(tinyinfer PUBLIC
-    include
-    ${CMAKE_CURRENT_BINARY_DIR}   # for generated onnx.pb.h
-    ${Protobuf_INCLUDE_DIRS}
-)
-target_include_directories(tinyinfer PRIVATE
-    src   # for internal onnx_parser.h
-)
-
-target_link_libraries(tinyinfer PUBLIC
-    ${Protobuf_LIBRARIES}
-    CUDA::cudart
-)
-
-# Make sure CUDA sources see C++ standard headers
-set_target_properties(tinyinfer PROPERTIES
-    CUDA_SEPARABLE_COMPILATION OFF
-)
+add_subdirectory(src/tensor)
+add_subdirectory(src/graph)
+add_subdirectory(src/model)
+add_subdirectory(src/ops)
+add_subdirectory(src/runtime)
+add_subdirectory(src/data)
+add_subdirectory(src/eval)
 
 # --------------------------------------------------------------------------
-# tinyinfer_demo executable
+# Demo executable
 # --------------------------------------------------------------------------
 add_executable(tinyinfer_demo src/main.cpp)
-target_link_libraries(tinyinfer_demo PRIVATE tinyinfer)
+target_link_libraries(tinyinfer_demo PRIVATE
+    tinyinfer_eval
+    tinyinfer_runtime
+    tinyinfer_model
+    tinyinfer_ops
+    tinyinfer_graph
+    tinyinfer_tensor
+    tinyinfer_data
+)
