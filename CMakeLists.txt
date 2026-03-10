@@ -17,13 +17,6 @@ find_package(CUDAToolkit REQUIRED)
 find_package(Protobuf REQUIRED)
 
 # --------------------------------------------------------------------------
-# Generate ONNX protobuf bindings (used by tinyinfer_model)
-# --------------------------------------------------------------------------
-protobuf_generate_cpp(ONNX_PROTO_SRCS ONNX_PROTO_HDRS
-    third_party/onnx/onnx.proto
-)
-
-# --------------------------------------------------------------------------
 # Modules (dependency order)
 # --------------------------------------------------------------------------
 include(CTest)
