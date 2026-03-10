@@ -1,5 +1,5 @@
 #pragma once
-#include "tinyinfer/graph.h"
+#include "graph/graph.h"
 #include <string>
 
 namespace tinyinfer {

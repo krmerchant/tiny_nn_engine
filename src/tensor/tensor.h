@@ -9,16 +9,6 @@ namespace tinyinfer {
 
 enum class DataType { Float32 };
 
-struct TensorDesc {
-    std::vector<int64_t> shape;
-    DataType dtype = DataType::Float32;
-
-    int64_t numel() const {
-        int64_t n = 1;
-        for (auto d : shape) n *= d;
-        return n;
-    }
-};
 
 class Tensor {
 public:
@@ -45,6 +35,10 @@ public:
 
 private:
     TensorDesc desc_;
+    std::vector<int64_t> shape;
+    DataType dtype = DataType::Float32;
+
+
     std::shared_ptr<float> data_;  // device memory, freed with cudaFree
 
     static std::shared_ptr<float> alloc_device(size_t n_floats);

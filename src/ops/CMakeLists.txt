@@ -4,21 +4,13 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES 75)
 
-add_library(tinyinfer_ops STATIC
-    # op_registry.cpp    # TODO
-    # gemm_op.cpp        # TODO
-    # gemm_kernel.cu     # TODO
-    # relu_op.cpp        # TODO
-    # relu_kernel.cu     # TODO
-    # softmax_op.cpp     # TODO
-    # softmax_kernel.cu  # TODO
-)
+add_library(tinyinfer_ops INTERFACE)
 
-target_include_directories(tinyinfer_ops PUBLIC
+target_include_directories(tinyinfer_ops INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(tinyinfer_ops PUBLIC
+target_link_libraries(tinyinfer_ops INTERFACE
     tinyinfer_graph
     tinyinfer_tensor
 )
