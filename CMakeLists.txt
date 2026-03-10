@@ -30,6 +30,12 @@ add_subdirectory(src/data)
 add_subdirectory(src/eval)
 
 # --------------------------------------------------------------------------
+# Scratch / playground executables
+# --------------------------------------------------------------------------
+add_executable(tensor_playground scratch/tensor_playground.cpp)
+target_link_libraries(tensor_playground PRIVATE tinyinfer_tensor)
+
+# --------------------------------------------------------------------------
 # Demo executable
 # --------------------------------------------------------------------------
 add_executable(tinyinfer_demo src/main.cpp)
