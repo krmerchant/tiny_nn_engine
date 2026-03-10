@@ -12,6 +12,7 @@ target_include_directories(tinyinfer_tensor PUBLIC
 
 target_link_libraries(tinyinfer_tensor PUBLIC
     CUDA::cudart
+    CUDA::cublas
 )
 
 if(BUILD_TESTING)

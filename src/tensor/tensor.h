@@ -23,8 +23,15 @@ public:
     // Move underlying data to CPU if not already there
     Tensor& cpu();
 
-// Raw pointer to device memory (read-only)
+    // Element access by multi-dimensional index (row-major)
+    float at(const std::vector<uint>& idx) const;
+
     const float* data_ptr() const { return _data; }
+    float* data_ptr() { return _data; }
+
+    void fill(float val);
+
+    Tensor operator+(const Tensor& other) const;
 
     const std::vector<int64_t>& shape() const { return _shape; }
     bool empty() const { return !_data; }
