@@ -8,40 +8,34 @@
 namespace tinyinfer {
 
 enum class DataType { Float32 };
+enum class Device { GPU, CPU };
 
 
 class Tensor {
 public:
     Tensor() = default;
-    explicit Tensor(const TensorDesc& desc);
+    explicit Tensor(const std::vector<int64_t>);
+    ~Tensor();
 
     // Factory: allocate on device and copy from host data
-    static Tensor from_host(const std::vector<float>& data, const std::vector<int64_t>& shape);
+    Tensor& cuda();
 
-    // Copy device data back to host
-    std::vector<float> to_host() const;
+    // Move underlying data to CPU if not already there
+    Tensor& cpu();
 
-    // argmax along a given axis (currently supports axis=1 for 2-D tensors)
-    std::vector<int> argmax(int axis = 1) const;
+// Raw pointer to device memory (read-only)
+    const float* data_ptr() const { return _data; }
 
-    // Raw pointer to device memory (read-only)
-    const float* data() const { return data_.get(); }
-    float* data_mut() { return data_.get(); }
-
-    const TensorDesc& desc() const { return desc_; }
-    const std::vector<int64_t>& shape() const { return desc_.shape; }
-    int64_t numel() const { return desc_.numel(); }
-    bool empty() const { return !data_; }
+    const std::vector<int64_t>& shape() const { return _shape; }
+    bool empty() const { return !_data; }
 
 private:
-    TensorDesc desc_;
-    std::vector<int64_t> shape;
-    DataType dtype = DataType::Float32;
+    std::vector<int64_t> _shape;
+    DataType _dtype = DataType::Float32;
+    Device _device = Device::CPU;
 
+    float* _data = nullptr;  // device or host memory depending on _device
 
-    std::shared_ptr<float> data_;  // device memory, freed with cudaFree
-
-    static std::shared_ptr<float> alloc_device(size_t n_floats);
 };
 
 }  // namespace tinyinfer
