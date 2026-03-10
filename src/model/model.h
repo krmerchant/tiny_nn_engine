@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include "tinyinfer/graph.h"
+#include "graph/graph.h"
 
 namespace tinyinfer {
 

@@ -3,8 +3,8 @@
 #include <unordered_map>
 #include <memory>
 #include <string>
-#include "tinyinfer/graph.h"
-#include "tinyinfer/tensor.h"
+#include "graph/graph.h"
+#include "tensor/tensor.h"
 
 namespace tinyinfer {
 

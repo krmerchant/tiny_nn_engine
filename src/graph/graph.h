@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "tinyinfer/tensor.h"
+#include "tensor/tensor.h"
 
 namespace tinyinfer {
 

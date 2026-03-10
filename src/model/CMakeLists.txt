@@ -2,18 +2,15 @@ cmake_minimum_required(VERSION 3.17)
 
 find_package(Protobuf REQUIRED)
 
-# ONNX proto generation — when building in isolation, proto must be generated here
-# When built from root, ONNX_PROTO_SRCS is already defined by the parent.
-if(NOT DEFINED ONNX_PROTO_SRCS)
-    protobuf_generate_cpp(ONNX_PROTO_SRCS ONNX_PROTO_HDRS
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/onnx/onnx.proto
-    )
-endif()
+# Always generate proto locally so add_library can find the GENERATED file
+protobuf_generate_cpp(ONNX_PROTO_SRCS ONNX_PROTO_HDRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/onnx/onnx.proto
+)
 
 add_library(tinyinfer_model STATIC
     ${ONNX_PROTO_SRCS}
-    # model.cpp       # TODO
-    # onnx_parser.cpp # TODO (internal)
+    model.cpp
+    onnx_parser.cpp
 )
 
 target_include_directories(tinyinfer_model PUBLIC

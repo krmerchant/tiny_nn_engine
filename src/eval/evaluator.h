@@ -1,8 +1,8 @@
 #pragma once
 #include <cstddef>
 #include <vector>
-#include "tinyinfer/mnist_loader.h"
-#include "tinyinfer/executor.h"
+#include "data/mnist_loader.h"
+#include "runtime/executor.h"
 
 namespace tinyinfer {
 

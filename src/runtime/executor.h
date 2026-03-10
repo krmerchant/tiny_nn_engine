@@ -2,8 +2,8 @@
 #include <unordered_map>
 #include <string>
 #include <cuda_runtime.h>
-#include "tinyinfer/model.h"
-#include "tinyinfer/tensor.h"
+#include "model/model.h"
+#include "tensor/tensor.h"
 
 namespace tinyinfer {
 
