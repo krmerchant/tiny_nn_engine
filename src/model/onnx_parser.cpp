@@ -28,7 +28,10 @@ Graph parse_onnx(const std::string& path) {
     // --- Initializers (weights) ---
     for (const auto& tp : g.initializer()) {
         if (tp.data_type() != 1) {  // 1 == FLOAT
-            continue;
+            throw std::runtime_error(
+                "parse_onnx: initializer '" + tp.name() +
+                "' has unsupported data type " + std::to_string(tp.data_type()) +
+                " (only FLOAT / data_type=1 is supported)");
         }
         std::vector<int64_t> shape(tp.dims().begin(), tp.dims().end());
         int64_t n = 1;
