@@ -1,8 +1,7 @@
 #include "tensor/tensor.h"
 #include <stdexcept>
-#include <algorithm>
 #include <cublas_v2.h>
-#include <iostream>
+
 namespace tinyinfer {
 
 // ---------------------------------------------------------------------------
@@ -16,16 +15,58 @@ static int64_t num_elements(const std::vector<int64_t>& shape) {
 }
 
 // ---------------------------------------------------------------------------
-// Constructor
+// GPUStorage implementation
+// ---------------------------------------------------------------------------
+
+float* GPUStorage::alloc(int64_t n) {
+    float* p;
+    cudaMalloc(&p, n * sizeof(float));
+    return p;
+}
+
+void GPUStorage::dealloc(float* p) {
+    cudaFree(p);
+}
+
+float GPUStorage::read_element(const float* p, int64_t i) const {
+    float v;
+    cudaMemcpy(&v, p + i, sizeof(float), cudaMemcpyDeviceToHost);
+    return v;
+}
+
+void GPUStorage::fill(float* /*p*/, int64_t /*n*/, float /*val*/) {
+    // TODO: launch a CUDA kernel to fill device buffer
+}
+
+void GPUStorage::add(const float* a, const float* b, float* out, int64_t n) const {
+    // out = a + b via cuBLAS: copy a into out, then out += 1*b
+    cudaMemcpy(out, a, n * sizeof(float), cudaMemcpyDeviceToDevice);
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    const float alpha = 1.0f;
+    cublasSaxpy(handle, static_cast<int>(n), &alpha, b, 1, out, 1);
+    cublasDestroy(handle);
+}
+
+std::unique_ptr<TensorStorage> GPUStorage::make_empty() const {
+    return std::make_unique<GPUStorage>();
+}
+
+// ---------------------------------------------------------------------------
+// CPUStorage make_empty (defined in .cpp to avoid incomplete-type issues)
+// ---------------------------------------------------------------------------
+
+std::unique_ptr<TensorStorage> CPUStorage::make_empty() const {
+    return std::make_unique<CPUStorage>();
+}
+
+// ---------------------------------------------------------------------------
+// Tensor constructors
 // ---------------------------------------------------------------------------
 
 Tensor::Tensor(const std::vector<int64_t> shape) : _shape(shape), _data(nullptr) {
-    int64_t n = num_elements(_shape);
-    if (_device == Device::CPU) {
-        _data = new float[n];
-    } else {
-        cudaMalloc(&_data, n * sizeof(float));
-    }
+    _storage = std::make_unique<CPUStorage>();
+    _data = _storage->alloc(num_elements(_shape));
 }
 
 Tensor::Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape)
@@ -37,7 +78,8 @@ Tensor::Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape
             "Tensor: data size " + std::to_string(data.size()) +
             " does not match shape product " + std::to_string(n));
     }
-    _data = new float[n];
+    _storage = std::make_unique<CPUStorage>();
+    _data = _storage->alloc(n);
     std::copy(data.begin(), data.end(), _data);
 }
 
@@ -47,22 +89,18 @@ Tensor::Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape
 
 Tensor::Tensor(Tensor&& other) noexcept
     : _shape(std::move(other._shape)), _dtype(other._dtype),
-      _device(other._device), _data(other._data)
+      _storage(std::move(other._storage)), _data(other._data)
 {
     other._data = nullptr;
 }
 
 Tensor& Tensor::operator=(Tensor&& other) noexcept {
     if (this != &other) {
-        // free current resource
-        if (_data) {
-            if (_device == Device::CPU) delete[] _data;
-            else cudaFree(_data);
-        }
-        _shape  = std::move(other._shape);
-        _dtype  = other._dtype;
-        _device = other._device;
-        _data   = other._data;
+        if (_data && _storage) _storage->dealloc(_data);
+        _shape   = std::move(other._shape);
+        _dtype   = other._dtype;
+        _storage = std::move(other._storage);
+        _data    = other._data;
         other._data = nullptr;
     }
     return *this;
@@ -73,13 +111,8 @@ Tensor& Tensor::operator=(Tensor&& other) noexcept {
 // ---------------------------------------------------------------------------
 
 Tensor::~Tensor() {
-    if (!_data) return;
-    if (_device == Device::CPU) {
-        std::cerr<< "freeing block" <<std::endl;
-        delete[] _data;
-    } else {
-        cudaFree(_data);
-    }
+    if (!_data || !_storage) return;
+    _storage->dealloc(_data);
     _data = nullptr;
 }
 
@@ -88,15 +121,15 @@ Tensor::~Tensor() {
 // ---------------------------------------------------------------------------
 
 Tensor& Tensor::cuda() {
-    if (_device == Device::GPU) return *this;
+    if (device() == Device::GPU) return *this;
 
     int64_t n = num_elements(_shape);
-    float* dev = nullptr;
-    cudaMalloc(&dev, n * sizeof(float));
+    auto gpu = std::make_unique<GPUStorage>();
+    float* dev = gpu->alloc(n);
     cudaMemcpy(dev, _data, n * sizeof(float), cudaMemcpyHostToDevice);
-    delete[] _data;
+    _storage->dealloc(_data);
+    _storage = std::move(gpu);
     _data = dev;
-    _device = Device::GPU;
     return *this;
 }
 
@@ -105,29 +138,24 @@ Tensor& Tensor::cuda() {
 // ---------------------------------------------------------------------------
 
 Tensor& Tensor::cpu() {
-    if (_device == Device::CPU) return *this;
+    if (device() == Device::CPU) return *this;
 
     int64_t n = num_elements(_shape);
-    float* host = new float[n];
-    // TODO: cudaMemcpy(host, _data, n * sizeof(float), cudaMemcpyDeviceToHost);
-    // TODO: cudaFree(_data);
+    auto cpu = std::make_unique<CPUStorage>();
+    float* host = cpu->alloc(n);
+    cudaMemcpy(host, _data, n * sizeof(float), cudaMemcpyDeviceToHost);
+    _storage->dealloc(_data);
+    _storage = std::move(cpu);
     _data = host;
-    _device = Device::CPU;
     return *this;
 }
-
 
 // ---------------------------------------------------------------------------
 // fill() — set all elements to a given value
 // ---------------------------------------------------------------------------
 
 void Tensor::fill(float val) {
-    int64_t n = num_elements(_shape);
-    if (_device == Device::CPU) {
-        std::fill(_data, _data + n, val);
-    } else {
-        // TODO: launch a CUDA kernel to fill device buffer
-    }
+    _storage->fill(_data, num_elements(_shape), val);
 }
 
 // ---------------------------------------------------------------------------
@@ -136,29 +164,18 @@ void Tensor::fill(float val) {
 
 Tensor Tensor::operator+(const Tensor& other) const {
     if (_shape != other._shape)
-        throw std::runtime_error("Tensor::operator+: shape mismatch");
-    if (other._device != this->_device)
-        throw std::runtime_error("Tensor::operator+: tensors on different devices");
+        throw std::runtime_error("operator+: shape mismatch");
+    if (other.device() != device())
+        throw std::runtime_error("operator+: device mismatch");
 
     int64_t n = num_elements(_shape);
-    Tensor result(_shape);
 
-    if (_device == Device::CPU) {
-        for (int64_t i = 0; i < n; ++i)
-            result._data[i] = _data[i] + other._data[i];
-    } else {
-        result.cuda();  // allocate result buffer on GPU before cuBLAS operations
-        // Copy this tensor's data into result on GPU
-        cudaMemcpy(result._data, _data, n * sizeof(float), cudaMemcpyDeviceToDevice);
+    Tensor result;
+    result._storage = _storage->make_empty();
+    result._shape   = _shape;
+    result._data    = result._storage->alloc(n);
 
-        // result = 1.0 * other + result  (i.e. result = this + other)
-        cublasHandle_t handle;
-        cublasCreate(&handle);
-        const float alpha = 1.0f;
-        cublasSaxpy(handle, static_cast<int>(n), &alpha, other._data, 1, result._data, 1);
-        cublasDestroy(handle);
-    }
-
+    _storage->add(_data, other._data, result._data, n);
     return result;
 }
 
@@ -175,7 +192,6 @@ float Tensor::at(const std::vector<uint>& idx) const {
             throw std::out_of_range("Tensor::at: index out of range");
     }
 
-    // compute flat row-major offset
     int64_t flat = 0;
     int64_t stride = 1;
     for (int i = static_cast<int>(_shape.size()) - 1; i >= 0; --i) {
@@ -183,13 +199,7 @@ float Tensor::at(const std::vector<uint>& idx) const {
         stride *= _shape[i];
     }
 
-    if (_device == Device::CPU) {
-        return _data[flat];
-    } else {
-        float val;
-        cudaMemcpy(&val, _data + flat, sizeof(float), cudaMemcpyDeviceToHost);
-        return val;
-    }
+    return _storage->read_element(_data, flat);
 }
 
 }  // namespace tinyinfer
