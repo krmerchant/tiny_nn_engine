@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cublas_v2.h>
-
+#include <iostream>
 namespace tinyinfer {
 
 // ---------------------------------------------------------------------------
@@ -28,6 +28,46 @@ Tensor::Tensor(const std::vector<int64_t> shape) : _shape(shape), _data(nullptr)
     }
 }
 
+Tensor::Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape)
+    : _shape(shape), _data(nullptr)
+{
+    int64_t n = num_elements(_shape);
+    if (static_cast<int64_t>(data.size()) != n) {
+        throw std::runtime_error(
+            "Tensor: data size " + std::to_string(data.size()) +
+            " does not match shape product " + std::to_string(n));
+    }
+    _data = new float[n];
+    std::copy(data.begin(), data.end(), _data);
+}
+
+// ---------------------------------------------------------------------------
+// Move constructor / move assignment
+// ---------------------------------------------------------------------------
+
+Tensor::Tensor(Tensor&& other) noexcept
+    : _shape(std::move(other._shape)), _dtype(other._dtype),
+      _device(other._device), _data(other._data)
+{
+    other._data = nullptr;
+}
+
+Tensor& Tensor::operator=(Tensor&& other) noexcept {
+    if (this != &other) {
+        // free current resource
+        if (_data) {
+            if (_device == Device::CPU) delete[] _data;
+            else cudaFree(_data);
+        }
+        _shape  = std::move(other._shape);
+        _dtype  = other._dtype;
+        _device = other._device;
+        _data   = other._data;
+        other._data = nullptr;
+    }
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 // Destructor
 // ---------------------------------------------------------------------------
@@ -35,6 +75,7 @@ Tensor::Tensor(const std::vector<int64_t> shape) : _shape(shape), _data(nullptr)
 Tensor::~Tensor() {
     if (!_data) return;
     if (_device == Device::CPU) {
+        std::cerr<< "freeing block" <<std::endl;
         delete[] _data;
     } else {
         cudaFree(_data);

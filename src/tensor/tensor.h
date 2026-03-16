@@ -15,7 +15,13 @@ class Tensor {
 public:
     Tensor() = default;
     explicit Tensor(const std::vector<int64_t>);
+    Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape);
     ~Tensor();
+
+    Tensor(const Tensor&) = delete;
+    Tensor& operator=(const Tensor&) = delete;
+    Tensor(Tensor&& other) noexcept;
+    Tensor& operator=(Tensor&& other) noexcept;
 
     // Factory: allocate on device and copy from host data
     Tensor& cuda();

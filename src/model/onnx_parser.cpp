@@ -43,7 +43,7 @@ Graph parse_onnx(const std::string& path) {
         } else {
             std::copy(tp.float_data().begin(), tp.float_data().end(), data.begin());
         }
-        graph.initializers[tp.name()] = Tensor::from_host(data, shape);
+        graph.initializers[tp.name()] = Tensor(data, shape);
     }
 
     // --- Graph inputs (skip weight-only inputs that are initializers) ---
