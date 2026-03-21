@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.17)
 find_package(CUDAToolkit REQUIRED)
 
 add_library(tinyinfer_tensor STATIC
-    tensor.cpp
+    tensor.cu
 )
 
 target_include_directories(tinyinfer_tensor PUBLIC

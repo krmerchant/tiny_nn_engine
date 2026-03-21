@@ -61,4 +61,31 @@ TEST_F(TensorTest, AddTensorsMismatchedDevices) {
     EXPECT_THROW(a + b, std::runtime_error);
 }
 
+// gemm: input(1,3) * weight(2,3)^T + bias(2,) = [1,2,3]*[[1,0,0],[0,1,0]]^T + [10,20]
+//      = [1, 2] + [10, 20] = [11, 22]
+TEST_F(TensorTest, GemmCorrectness) {
+    tinyinfer::Tensor input({1.f, 2.f, 3.f}, {1, 3});
+    tinyinfer::Tensor weight({1.f, 0.f, 0.f, 0.f, 1.f, 0.f}, {2, 3});
+    tinyinfer::Tensor bias({10.f, 20.f}, {2});
+    input.cuda(); weight.cuda(); bias.cuda();
+
+    tinyinfer::Tensor out = input.gemm(weight, bias);
+
+    out.cpu();
+    EXPECT_FLOAT_EQ(out.at({0, 0}), 11.f);
+    EXPECT_FLOAT_EQ(out.at({0, 1}), 22.f);
+}
+
+// relu: [-1, 0, 2, -3] -> [0, 0, 2, 0]
+TEST_F(TensorTest, ReluCorrectness) {
+    tinyinfer::Tensor t({-1.f, 0.f, 2.f, -3.f}, {1, 4});
+    t.cuda();
+    tinyinfer::Tensor out = t.relu();
+    out.cpu();
+    EXPECT_FLOAT_EQ(out.at({0, 0}), 0.f);
+    EXPECT_FLOAT_EQ(out.at({0, 1}), 0.f);
+    EXPECT_FLOAT_EQ(out.at({0, 2}), 2.f);
+    EXPECT_FLOAT_EQ(out.at({0, 3}), 0.f);
+}
+
 }  // namespace

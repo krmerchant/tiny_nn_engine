@@ -35,6 +35,18 @@ add_subdirectory(src/eval)
 add_executable(tensor_playground scratch/tensor_playground.cpp)
 target_link_libraries(tensor_playground PRIVATE tinyinfer_tensor)
 
+add_executable(model_onnx_playground scratch/model_onnx_playground.cpp ${PROTO_SRCS})
+target_include_directories(model_onnx_playground PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${Protobuf_INCLUDE_DIRS})
+target_link_libraries(model_onnx_playground PRIVATE ${Protobuf_LIBRARIES} tinyinfer_model)
+
+
+
+
+
+
+
 # --------------------------------------------------------------------------
 # Demo executable
 # --------------------------------------------------------------------------

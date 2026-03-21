@@ -34,7 +34,9 @@ Graph parse_onnx(const std::string& path) {
                 " (only FLOAT / data_type=1 is supported)");
         }
         std::vector<int64_t> shape(tp.dims().begin(), tp.dims().end());
-        int64_t n = 1;
+   
+        //get number of elements in flatvector
+        int64_t n = 1; 
         for (auto d : shape) n *= d;
 
         std::vector<float> data(n);

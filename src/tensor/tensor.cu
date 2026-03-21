@@ -1,6 +1,5 @@
 #include "tensor/tensor.h"
 #include <stdexcept>
-#include <cublas_v2.h>
 
 namespace tinyinfer {
 
@@ -17,6 +16,8 @@ static int64_t num_elements(const std::vector<int64_t>& shape) {
 // ---------------------------------------------------------------------------
 // GPUStorage implementation
 // ---------------------------------------------------------------------------
+
+namespace internal {
 
 float* GPUStorage::alloc(int64_t n) {
     float* p;
@@ -39,13 +40,48 @@ void GPUStorage::fill(float* /*p*/, int64_t /*n*/, float /*val*/) {
 }
 
 void GPUStorage::add(const float* a, const float* b, float* out, int64_t n) const {
-    // out = a + b via cuBLAS: copy a into out, then out += 1*b
     cudaMemcpy(out, a, n * sizeof(float), cudaMemcpyDeviceToDevice);
-    cublasHandle_t handle;
-    cublasCreate(&handle);
     const float alpha = 1.0f;
-    cublasSaxpy(handle, static_cast<int>(n), &alpha, b, 1, out, 1);
-    cublasDestroy(handle);
+    cublasSaxpy(cublas_handle_, static_cast<int>(n), &alpha, b, 1, out, 1);
+}
+
+// out(M,N) = self(M,K) * weight(N,K)^T + bias(N,)
+//
+// Row-major trick: row-major X(r,c) looks like col-major X^T(c,r) to cuBLAS.
+// We want out^T(N,M) = weight(N,K) * self(M,K)^T
+//   cuBLAS sees weight ptr as weight^T(K,N) → CUBLAS_OP_T gives weight(N,K)
+//   cuBLAS sees self   ptr as self^T(K,M)   → CUBLAS_OP_N keeps self^T as-is
+//
+// TODO: revisit handle-per-GPUStorage design. Each tensor currently owns its
+// own cublasHandle_t. A real engine would share one handle across the entire
+// session (owned by the Executor) to avoid per-tensor overhead and allow
+// stream binding at the executor level.
+void GPUStorage::gemm(const float* A, const float* B, const float* bias,
+                      float* out, int M, int N, int K) const {
+    const float alpha = 1.0f, beta = 0.0f;
+    cublasSgemm(cublas_handle_,
+        CUBLAS_OP_T, CUBLAS_OP_N,
+        N, M, K,
+        &alpha,
+        B,   K,   // weight^T: K×N col-major
+        A,   K,   // self^T:   K×M col-major
+        &beta,
+        out, N);  // out^T:    N×M col-major
+
+    // Add bias row: out[0..N-1] += bias[0..N-1]  (correct for M=1)
+    const float one = 1.0f;
+    cublasSaxpy(cublas_handle_, N, &one, bias, 1, out, 1);
+}
+
+__global__ static void relu_kernel(const float* in, float* out, int64_t n) {
+    int64_t i = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) out[i] = in[i] > 0.f ? in[i] : 0.f;
+}
+
+void GPUStorage::relu(const float* in, float* out, int64_t n, cudaStream_t stream) const {
+    int threads = 256;
+    int blocks  = (int)((n + threads - 1) / threads);
+    relu_kernel<<<blocks, threads, 0, stream>>>(in, out, n);
 }
 
 std::unique_ptr<TensorStorage> GPUStorage::make_empty() const {
@@ -53,19 +89,36 @@ std::unique_ptr<TensorStorage> GPUStorage::make_empty() const {
 }
 
 // ---------------------------------------------------------------------------
-// CPUStorage make_empty (defined in .cpp to avoid incomplete-type issues)
+// CPUStorage implementation
 // ---------------------------------------------------------------------------
 
 std::unique_ptr<TensorStorage> CPUStorage::make_empty() const {
     return std::make_unique<CPUStorage>();
 }
 
+void CPUStorage::gemm(const float* A, const float* B, const float* bias,
+                      float* out, int M, int N, int K) const {
+    for (int m = 0; m < M; ++m)
+        for (int n = 0; n < N; ++n) {
+            float acc = bias[n];
+            for (int k = 0; k < K; ++k)
+                acc += A[m*K + k] * B[n*K + k];  // B stored as N×K
+            out[m*N + n] = acc;
+        }
+}
+
+void CPUStorage::relu(const float* in, float* out, int64_t n, cudaStream_t) const {
+    for (int64_t i = 0; i < n; ++i) out[i] = in[i] > 0.f ? in[i] : 0.f;
+}
+
+}  // namespace internal
+
 // ---------------------------------------------------------------------------
 // Tensor constructors
 // ---------------------------------------------------------------------------
 
 Tensor::Tensor(const std::vector<int64_t> shape) : _shape(shape), _data(nullptr) {
-    _storage = std::make_unique<CPUStorage>();
+    _storage = std::make_unique<internal::CPUStorage>();
     _data = _storage->alloc(num_elements(_shape));
 }
 
@@ -78,7 +131,7 @@ Tensor::Tensor(const std::vector<float>& data, const std::vector<int64_t>& shape
             "Tensor: data size " + std::to_string(data.size()) +
             " does not match shape product " + std::to_string(n));
     }
-    _storage = std::make_unique<CPUStorage>();
+    _storage = std::make_unique<internal::CPUStorage>();
     _data = _storage->alloc(n);
     std::copy(data.begin(), data.end(), _data);
 }
@@ -124,7 +177,7 @@ Tensor& Tensor::cuda() {
     if (device() == Device::GPU) return *this;
 
     int64_t n = num_elements(_shape);
-    auto gpu = std::make_unique<GPUStorage>();
+    auto gpu = std::make_unique<internal::GPUStorage>();
     float* dev = gpu->alloc(n);
     cudaMemcpy(dev, _data, n * sizeof(float), cudaMemcpyHostToDevice);
     _storage->dealloc(_data);
@@ -141,7 +194,7 @@ Tensor& Tensor::cpu() {
     if (device() == Device::CPU) return *this;
 
     int64_t n = num_elements(_shape);
-    auto cpu = std::make_unique<CPUStorage>();
+    auto cpu = std::make_unique<internal::CPUStorage>();
     float* host = cpu->alloc(n);
     cudaMemcpy(host, _data, n * sizeof(float), cudaMemcpyDeviceToHost);
     _storage->dealloc(_data);
@@ -177,6 +230,35 @@ Tensor Tensor::operator+(const Tensor& other) const {
 
     _storage->add(_data, other._data, result._data, n);
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// gemm() — out(M,N) = self(M,K) * weight(N,K)^T + bias(N,)
+// ---------------------------------------------------------------------------
+
+Tensor Tensor::gemm(const Tensor& weight, const Tensor& bias) const {
+    int M = (int)_shape[0];
+    int K = (int)_shape[1];
+    int N = (int)weight.shape()[0];
+
+    Tensor out({(int64_t)M, (int64_t)N});
+    if (device() == Device::GPU) out.cuda();
+
+    _storage->gemm(data_ptr(), weight.data_ptr(), bias.data_ptr(),
+                   out.data_ptr(), M, N, K);
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// relu() — element-wise max(0, x)
+// ---------------------------------------------------------------------------
+
+Tensor Tensor::relu(cudaStream_t stream) const {
+    int64_t n = num_elements(_shape);
+    Tensor out(_shape);
+    if (device() == Device::GPU) out.cuda();
+    _storage->relu(data_ptr(), out.data_ptr(), n, stream);
+    return out;
 }
 
 // ---------------------------------------------------------------------------
