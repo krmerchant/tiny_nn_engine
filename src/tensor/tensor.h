@@ -28,6 +28,7 @@ public:
     virtual void   gemm(const float* A, const float* B, const float* bias,
                         float* out, int M, int N, int K) const = 0;
     virtual void   relu(const float* in, float* out, int64_t n, cudaStream_t stream) const = 0;
+    virtual void   softmax(const float* in, float* out, int rows, int cols, cudaStream_t stream) const = 0;
     virtual std::unique_ptr<TensorStorage> make_empty() const = 0;
     virtual Device device() const = 0;
     virtual ~TensorStorage() = default;
@@ -45,6 +46,7 @@ public:
     void   gemm(const float* A, const float* B, const float* bias,
                 float* out, int M, int N, int K) const override;
     void   relu(const float* in, float* out, int64_t n, cudaStream_t stream) const override;
+    void   softmax(const float* in, float* out, int rows, int cols, cudaStream_t stream) const override;
     std::unique_ptr<TensorStorage> make_empty() const override;
     Device device() const override { return Device::CPU; }
 };
@@ -62,6 +64,7 @@ public:
     void   gemm(const float* A, const float* B, const float* bias,
                 float* out, int M, int N, int K) const override;
     void   relu(const float* in, float* out, int64_t n, cudaStream_t stream) const override;
+    void   softmax(const float* in, float* out, int rows, int cols, cudaStream_t stream) const override;
     std::unique_ptr<TensorStorage> make_empty() const override;
     Device device() const override { return Device::GPU; }
 
@@ -109,6 +112,12 @@ public:
 
     // Returns new tensor with ReLU applied element-wise; output on same device as self
     Tensor relu(cudaStream_t stream = nullptr) const;
+
+    // Returns new tensor with row-wise softmax applied; self must be 2-D
+    Tensor softmax(cudaStream_t stream = nullptr) const;
+
+    // In-place reshape: updates shape metadata without touching data
+    void reshape_(const std::vector<int64_t>& new_shape);
 
     const std::vector<int64_t>& shape() const { return _shape; }
     bool empty() const { return !_data; }

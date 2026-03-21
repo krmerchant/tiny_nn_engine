@@ -84,6 +84,64 @@ void GPUStorage::relu(const float* in, float* out, int64_t n, cudaStream_t strea
     relu_kernel<<<blocks, threads, 0, stream>>>(in, out, n);
 }
 
+// One block per row; blockDim.x must be a power of 2 (we use 32).
+// Shared memory: blockDim.x floats for reduction scratch.
+__global__ static void softmax_kernel(const float* in, float* out, int cols) {
+    extern __shared__ float smem[];
+    int row = blockIdx.x;
+    const float* row_in  = in  + row * cols;
+    float*       row_out = out + row * cols;
+
+    // Step 1: thread-local max
+    float local_max = -1e38f;
+    for (int i = threadIdx.x; i < cols; i += blockDim.x) {
+        float v = row_in[i];
+        if (v > local_max) local_max = v;
+    }
+    smem[threadIdx.x] = local_max;
+    __syncthreads();
+
+    // Reduce to global row max
+    for (int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            smem[threadIdx.x] = smem[threadIdx.x] > smem[threadIdx.x + stride]
+                                 ? smem[threadIdx.x] : smem[threadIdx.x + stride];
+        __syncthreads();
+    }
+    float row_max = smem[0];
+    __syncthreads();
+
+    // Step 2: exp and partial sum
+    float local_sum = 0.f;
+    for (int i = threadIdx.x; i < cols; i += blockDim.x) {
+        float e = __expf(row_in[i] - row_max);
+        row_out[i] = e;
+        local_sum += e;
+    }
+    smem[threadIdx.x] = local_sum;
+    __syncthreads();
+
+    // Reduce to global sum
+    for (int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            smem[threadIdx.x] += smem[threadIdx.x + stride];
+        __syncthreads();
+    }
+    float row_sum = smem[0];
+    __syncthreads();
+
+    // Step 3: normalize
+    for (int i = threadIdx.x; i < cols; i += blockDim.x)
+        row_out[i] /= row_sum;
+}
+
+void GPUStorage::softmax(const float* in, float* out, int rows, int cols,
+                         cudaStream_t stream) const {
+    int threads = 32;  // one warp; power-of-2, sufficient for typical col counts
+    size_t smem  = threads * sizeof(float);
+    softmax_kernel<<<rows, threads, smem, stream>>>(in, out, cols);
+}
+
 std::unique_ptr<TensorStorage> GPUStorage::make_empty() const {
     return std::make_unique<GPUStorage>();
 }
@@ -109,6 +167,25 @@ void CPUStorage::gemm(const float* A, const float* B, const float* bias,
 
 void CPUStorage::relu(const float* in, float* out, int64_t n, cudaStream_t) const {
     for (int64_t i = 0; i < n; ++i) out[i] = in[i] > 0.f ? in[i] : 0.f;
+}
+
+void CPUStorage::softmax(const float* in, float* out, int rows, int cols, cudaStream_t) const {
+    for (int r = 0; r < rows; ++r) {
+        const float* row_in  = in  + r * cols;
+        float*       row_out = out + r * cols;
+
+        float max_val = row_in[0];
+        for (int c = 1; c < cols; ++c)
+            if (row_in[c] > max_val) max_val = row_in[c];
+
+        float sum = 0.f;
+        for (int c = 0; c < cols; ++c) {
+            row_out[c] = std::exp(row_in[c] - max_val);
+            sum += row_out[c];
+        }
+        for (int c = 0; c < cols; ++c)
+            row_out[c] /= sum;
+    }
 }
 
 }  // namespace internal
@@ -259,6 +336,34 @@ Tensor Tensor::relu(cudaStream_t stream) const {
     if (device() == Device::GPU) out.cuda();
     _storage->relu(data_ptr(), out.data_ptr(), n, stream);
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// softmax() — row-wise softmax on a 2-D tensor
+// ---------------------------------------------------------------------------
+
+Tensor Tensor::softmax(cudaStream_t stream) const {
+    if (_shape.size() != 2)
+        throw std::runtime_error("Tensor::softmax: only 2-D tensors supported");
+    int rows = (int)_shape[0];
+    int cols = (int)_shape[1];
+    Tensor out(_shape);
+    if (device() == Device::GPU) out.cuda();
+    _storage->softmax(data_ptr(), out.data_ptr(), rows, cols, stream);
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// reshape_() — in-place shape change (data layout unchanged)
+// ---------------------------------------------------------------------------
+
+void Tensor::reshape_(const std::vector<int64_t>& new_shape) {
+    int64_t old_n = num_elements(_shape);
+    int64_t new_n = 1;
+    for (int64_t d : new_shape) new_n *= d;
+    if (old_n != new_n)
+        throw std::runtime_error("Tensor::reshape_: element count mismatch");
+    _shape = new_shape;
 }
 
 // ---------------------------------------------------------------------------
