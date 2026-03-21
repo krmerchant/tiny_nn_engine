@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <stdexcept>
 #include <algorithm>
@@ -123,6 +124,14 @@ public:
     void reshape_(const std::vector<int64_t>& new_shape);
 
     const std::vector<int64_t>& shape() const { return _shape; }
+    std::string shape_str() const {
+        std::string s = "[";
+        for (size_t i = 0; i < _shape.size(); ++i) {
+            if (i) s += ", ";
+            s += std::to_string(_shape[i]);
+        }
+        return s + "]";
+    }
     bool empty() const { return !_data; }
     Device device() const { return _storage ? _storage->device() : Device::CPU; }
 
