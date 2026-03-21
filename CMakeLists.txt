@@ -17,6 +17,17 @@ find_package(CUDAToolkit REQUIRED)
 find_package(Protobuf REQUIRED)
 
 # --------------------------------------------------------------------------
+# GTest (fetched once at root so subdir CMakeLists don't each do it)
+# --------------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# --------------------------------------------------------------------------
 # Modules (dependency order)
 # --------------------------------------------------------------------------
 include(CTest)
