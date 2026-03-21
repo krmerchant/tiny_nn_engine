@@ -1,4 +1,5 @@
 #include "tensor/tensor.h"
+#include <cstring>
 #include <stdexcept>
 
 namespace tinyinfer {
@@ -278,6 +279,24 @@ Tensor& Tensor::cpu() {
     _storage = std::move(cpu);
     _data = host;
     return *this;
+}
+
+// ---------------------------------------------------------------------------
+// clone() — deep copy to the same device
+// ---------------------------------------------------------------------------
+
+Tensor Tensor::clone() const {
+    int64_t n = num_elements(_shape);
+    Tensor result;
+    result._shape   = _shape;
+    result._dtype   = _dtype;
+    result._storage = _storage->make_empty();
+    result._data    = result._storage->alloc(n);
+    if (device() == Device::GPU)
+        cudaMemcpy(result._data, _data, n * sizeof(float), cudaMemcpyDeviceToDevice);
+    else
+        std::memcpy(result._data, _data, n * sizeof(float));
+    return result;
 }
 
 // ---------------------------------------------------------------------------

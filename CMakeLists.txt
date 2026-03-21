@@ -66,8 +66,9 @@ target_link_libraries(tinyinfer_demo PRIVATE
     tinyinfer_eval
     tinyinfer_runtime
     tinyinfer_model
-    tinyinfer_ops
+    -Wl,--whole-archive $<TARGET_FILE:tinyinfer_ops> -Wl,--no-whole-archive
     tinyinfer_graph
     tinyinfer_tensor
     tinyinfer_data
 )
+add_dependencies(tinyinfer_demo tinyinfer_ops)

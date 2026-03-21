@@ -22,9 +22,10 @@ public:
     virtual ~IExecutor() = 0;
 
     // Run one inference pass. Inputs are keyed by ONNX input name.
+    // Caller moves tensors in; executor uploads to GPU as needed.
     // Returns a map from ONNX output name → result tensor.
     virtual std::unordered_map<std::string, Tensor>
-    run(const std::unordered_map<std::string, Tensor>& inputs) = 0;
+    run(std::unordered_map<std::string, Tensor> inputs) = 0;
 };
 inline IExecutor::~IExecutor() = default;
 
@@ -43,8 +44,14 @@ public:
         std::unique_ptr<Executor> build() {
             if (!model_.has_value())
                 throw std::logic_error("Executor::Builder: model not set");
-            return std::unique_ptr<Executor>(
-                new Executor(model_->get(), precision_, profiling_));
+            auto exec = std::unique_ptr<Executor>(new Executor());
+            exec->model_            = &model_->get();
+            exec->precision_        = precision_;
+            exec->enable_profiling_ = profiling_;
+            cudaStreamCreate(&exec->stream_);
+            for (const auto& [name, tensor] : exec->model_->graph().initializers)
+                exec->value_map_[name] = tensor.clone();
+            return exec;
         }
 
     private:
@@ -56,18 +63,18 @@ public:
     ~Executor();
 
     std::unordered_map<std::string, Tensor>
-    run(const std::unordered_map<std::string, Tensor>& inputs) override;
+    run(std::unordered_map<std::string, Tensor> inputs) override;
 
-    const Model& model_ref() const { return model_; }
+    const Model& model_ref() const { return *model_; }
 
 private:
     friend class Builder;
-    Executor(const Model& model, Precision precision, bool enable_profiling);
+    Executor() = default;
 
-    const Model& model_;
-    Precision precision_;
-    bool enable_profiling_;
-    cudaStream_t stream_ = nullptr;
+    const Model*   model_  = nullptr;
+    Precision      precision_ = Precision::FP32;
+    bool           enable_profiling_ = false;
+    cudaStream_t   stream_ = nullptr;
 
     // Persistent intermediate activation map
     std::unordered_map<std::string, Tensor> value_map_;

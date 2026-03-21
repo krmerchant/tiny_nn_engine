@@ -104,6 +104,9 @@ public:
 
     void fill(float val);
 
+    // Deep copy to the same device (D2D cudaMemcpy for GPU, memcpy for CPU)
+    Tensor clone() const;
+
     Tensor operator+(const Tensor& other) const;
 
     // Returns new GPU tensor: out(M,N) = self(M,K) * weight(N,K)^T + bias(N,)
