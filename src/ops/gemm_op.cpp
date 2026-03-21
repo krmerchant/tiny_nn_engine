@@ -1,6 +1,6 @@
 #include "ops/op_registry.h"
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 class GemmOp : public OpKernel {
 public:
@@ -18,4 +18,4 @@ static OpRegistrar gemm_registrar(OpType::Gemm, []() -> std::unique_ptr<OpKernel
     return std::make_unique<GemmOp>();
 });
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal

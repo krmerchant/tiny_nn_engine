@@ -1,6 +1,6 @@
 #include "ops/op_registry.h"
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 class ReluOp : public OpKernel {
 public:
@@ -16,4 +16,4 @@ static OpRegistrar relu_registrar(OpType::Relu, []() -> std::unique_ptr<OpKernel
     return std::make_unique<ReluOp>();
 });
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal

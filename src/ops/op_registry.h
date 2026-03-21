@@ -6,7 +6,7 @@
 #include "graph/graph.h"
 #include "tensor/tensor.h"
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 // Context passed to each kernel at inference time
 struct KernelContext {
@@ -47,4 +47,4 @@ struct OpRegistrar {
     }
 };
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal

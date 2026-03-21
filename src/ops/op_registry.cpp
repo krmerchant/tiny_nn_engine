@@ -1,7 +1,7 @@
 #include "ops/op_registry.h"
 #include <stdexcept>
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 OpRegistry& OpRegistry::instance() {
     static OpRegistry reg;
@@ -19,4 +19,4 @@ std::unique_ptr<OpKernel> OpRegistry::create(OpType type) const {
     return it->second();
 }
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal

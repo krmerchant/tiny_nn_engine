@@ -1,6 +1,6 @@
 #include "ops/op_registry.h"
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 class SoftmaxOp : public OpKernel {
 public:
@@ -16,4 +16,4 @@ static OpRegistrar softmax_registrar(OpType::Softmax, []() -> std::unique_ptr<Op
     return std::make_unique<SoftmaxOp>();
 });
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal

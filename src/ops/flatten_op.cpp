@@ -1,6 +1,6 @@
 #include "ops/op_registry.h"
 
-namespace tinyinfer {
+namespace tinyinfer::internal {
 
 class FlattenOp : public OpKernel {
 public:
@@ -30,4 +30,4 @@ static OpRegistrar flatten_registrar(OpType::Flatten, []() -> std::unique_ptr<Op
     return std::make_unique<FlattenOp>();
 });
 
-}  // namespace tinyinfer
+}  // namespace tinyinfer::internal
