@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -131,6 +132,11 @@ public:
             s += std::to_string(_shape[i]);
         }
         return s + "]";
+    }
+    std::string to_string() const;
+    void to_matlab(const std::string& path, const std::string& var_name = "data") const;
+    friend std::ostream& operator<<(std::ostream& os, const Tensor& t) {
+        return os << t.to_string();
     }
     bool empty() const { return !_data; }
     Device device() const { return _storage ? _storage->device() : Device::CPU; }

@@ -1,5 +1,8 @@
 #include "tensor/tensor.h"
 #include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
 namespace tinyinfer {
@@ -370,6 +373,91 @@ Tensor Tensor::softmax(cudaStream_t stream) const {
     if (device() == Device::GPU) out.cuda();
     _storage->softmax(data_ptr(), out.data_ptr(), rows, cols, stream);
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// reshape_() — in-place shape change (data layout unchanged)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// to_string() — human-readable tensor contents
+// ---------------------------------------------------------------------------
+
+std::string Tensor::to_string() const {
+    if (empty()) return "tensor(<empty>)";
+
+    std::ostringstream os;
+    os << std::fixed << std::setprecision(4);
+
+    auto read = [&](int64_t i) { return _storage->read_element(_data, i); };
+    int64_t n = num_elements(_shape);
+
+    if (_shape.size() == 1) {
+        int64_t show = n <= 16 ? n : 8;
+        os << "[";
+        for (int64_t i = 0; i < show; ++i) {
+            if (i) os << ", ";
+            os << read(i);
+        }
+        if (n > 16) os << ", ...";
+        os << "]";
+    } else if (_shape.size() == 2) {
+        int64_t rows = _shape[0], cols = _shape[1];
+        int64_t show_rows = rows <= 3 ? rows : 2;
+        int64_t show_cols = cols <= 8 ? cols : 4;
+        os << "[";
+        for (int64_t r = 0; r < show_rows; ++r) {
+            if (r) os << ", ";
+            os << "[";
+            for (int64_t c = 0; c < show_cols; ++c) {
+                if (c) os << ", ";
+                os << read(r * cols + c);
+            }
+            if (cols > 8) os << ", ...";
+            os << "]";
+        }
+        if (rows > 3) os << ", ...";
+        os << "]";
+    } else {
+        int64_t show = n <= 16 ? n : 8;
+        os << "[";
+        for (int64_t i = 0; i < show; ++i) {
+            if (i) os << ", ";
+            os << read(i);
+        }
+        if (n > 16) os << ", ...";
+        os << "]";
+    }
+
+    return "tensor(" + shape_str() + "): " + os.str();
+}
+
+// ---------------------------------------------------------------------------
+// to_matlab() — write tensor to a .m file for MATLAB plotting
+// ---------------------------------------------------------------------------
+
+void Tensor::to_matlab(const std::string& path, const std::string& var_name) const {
+    if (_shape.size() > 2)
+        throw std::runtime_error("Tensor::to_matlab: only 1-D and 2-D tensors supported");
+
+    std::ofstream f(path);
+    if (!f) throw std::runtime_error("Tensor::to_matlab: cannot open file: " + path);
+
+    f << std::fixed << std::setprecision(4);
+    f << "% tensor(" << shape_str() << ")\n";
+    f << var_name << " = [";
+
+    int64_t rows = (_shape.size() == 2) ? _shape[0] : 1;
+    int64_t cols = (_shape.size() == 2) ? _shape[1] : _shape[0];
+
+    for (int64_t r = 0; r < rows; ++r) {
+        if (r) f << "; ";
+        for (int64_t c = 0; c < cols; ++c) {
+            if (c) f << ", ";
+            f << _storage->read_element(_data, r * cols + c);
+        }
+    }
+    f << "];\n";
 }
 
 // ---------------------------------------------------------------------------
