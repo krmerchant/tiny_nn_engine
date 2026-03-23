@@ -7,6 +7,7 @@
 #include <string>
 #include <cuda_runtime.h>
 #include "model/model.h"
+#include "runtime/profiler.h"
 #include "tensor/tensor.h"
 
 namespace tinyinfer {
@@ -72,6 +73,9 @@ public:
 
     const Model& model_ref() const override { return *model_; }
 
+    // Print per-phase timing breakdown averaged over num_samples runs.
+    void print_profile(int num_samples) const;
+
 private:
     friend class Builder;
     GPUExecutor() = default;
@@ -82,6 +86,12 @@ private:
     cudaStream_t   stream_ = nullptr;
 
     std::unordered_map<std::string, Tensor> value_map_;
+
+    // Profiling state
+    Profiler profiler_;
+    struct PhaseStats { double wall_ms = 0; double gpu_ms = 0; int count = 0; };
+    mutable std::unordered_map<std::string, PhaseStats> phase_stats_;
+    std::vector<std::string> phase_order_;  // insertion order for printing
 };
 
 // ---------------------------------------------------------------------------

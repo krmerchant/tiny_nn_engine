@@ -44,27 +44,34 @@ EvalResult Evaluator::evaluate(IExecutor &executor,
   result.confusion = Tensor({10, 10});
   std::memset(result.confusion.data_ptr(), 0, 100 * sizeof(float));
 
-  for (size_t i = 0; i < dataset.size(); ++i) {
-    const MNISTSample &sample = dataset[i];
+  const int64_t feat = dataset[0].image.shape()[0];  // 784
 
-    // Run inference — reshape flat image to [1, n] to add batch dim
-    Tensor img = sample.image.clone();
-    const auto& s = img.shape();
-    if (s.size() == 1) img.reshape_({1, s[0]});
+  for (size_t i = 0; i < dataset.size(); i += batch_size_) {
+    size_t n = std::min(batch_size_, dataset.size() - i);
+
+    // Stack n images into [n, feat]
+    Tensor batch({(int64_t)n, feat});
+    for (size_t j = 0; j < n; ++j)
+      std::memcpy(batch.data_ptr() + j * feat,
+                  dataset[i + j].image.data_ptr(),
+                  feat * sizeof(float));
+
     std::unordered_map<std::string, Tensor> inputs;
-    inputs[input_name] = std::move(img);
+    inputs[input_name] = std::move(batch);
     auto outputs = executor.run(std::move(inputs));
 
-    // Argmax over 10 classes
+    // Argmax each row of [n, 10] output
     Tensor &out = outputs.at(output_name);
     out.cpu();
-    const float *ptr = out.data_ptr();
-    int predicted = 0;
-    for (int c = 1; c < 10; ++c)
-      if (ptr[c] > ptr[predicted]) predicted = c;
-
-    if (predicted == sample.label) ++result.correct;
-    result.confusion.data_ptr()[sample.label * 10 + predicted] += 1.f;
+    for (size_t j = 0; j < n; ++j) {
+      const float *row = out.data_ptr() + j * 10;
+      int predicted = 0;
+      for (int c = 1; c < 10; ++c)
+        if (row[c] > row[predicted]) predicted = c;
+      int label = dataset[i + j].label;
+      if (predicted == label) ++result.correct;
+      result.confusion.data_ptr()[label * 10 + predicted] += 1.f;
+    }
   }
 
   result.total    = static_cast<int>(dataset.size());

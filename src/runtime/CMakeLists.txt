@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.17)
 
 find_package(CUDAToolkit REQUIRED)
 
-add_library(tinyinfer_runtime STATIC executor.cpp)
+add_library(tinyinfer_runtime STATIC executor.cpp profiler.cpp)
 
 target_include_directories(tinyinfer_runtime PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..

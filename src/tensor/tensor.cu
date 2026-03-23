@@ -72,9 +72,10 @@ void GPUStorage::gemm(const float* A, const float* B, const float* bias,
         &beta,
         out, N);  // out^T:    N×M col-major
 
-    // Add bias row: out[0..N-1] += bias[0..N-1]  (correct for M=1)
+    // Add bias to every row of out (each row is N elements)
     const float one = 1.0f;
-    cublasSaxpy(cublas_handle_, N, &one, bias, 1, out, 1);
+    for (int m = 0; m < M; ++m)
+        cublasSaxpy(cublas_handle_, N, &one, bias, 1, out + m * N, 1);
 }
 
 __global__ static void relu_kernel(const float* in, float* out, int64_t n) {
