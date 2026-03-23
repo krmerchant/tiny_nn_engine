@@ -23,7 +23,7 @@ class Evaluator {
 public:
     // Run the full dataset through executor, collect accuracy and confusion matrix
     static EvalResult evaluate(Executor& executor,
-                               const MNISTDataset& dataset,
+                               const IDataset<MNISTSample>& dataset,
                                const EvalConfig& cfg = {});
 };
 
