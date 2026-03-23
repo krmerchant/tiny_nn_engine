@@ -9,6 +9,12 @@ Executor::~Executor() {
 
 std::unordered_map<std::string, Tensor>
 Executor::run(std::unordered_map<std::string, Tensor> inputs) {
+    // 0. Clear stale intermediate activations so emplace succeeds each run
+    const Graph& g = model_->graph();
+    for (const Node& node : g.nodes)
+        for (const auto& out_name : node.outputs)
+            value_map_.erase(out_name);
+
     // 1. Upload inputs to GPU and insert into value map
     for (auto& [name, tensor] : inputs) {
         tensor.cuda();
@@ -16,7 +22,6 @@ Executor::run(std::unordered_map<std::string, Tensor> inputs) {
     }
 
     // 2. Dispatch each node in topological order
-    const Graph& g = model_->graph();
     for (const Node& node : g.nodes) {
         auto kernel = internal::OpRegistry::instance().create(node.op_type);
         internal::KernelContext ctx{node, value_map_, stream_};
@@ -26,10 +31,13 @@ Executor::run(std::unordered_map<std::string, Tensor> inputs) {
     // 3. Sync stream before reading results
     cudaStreamSynchronize(stream_);
 
-    // 4. Collect and return outputs (move out; they'll be recomputed on next run)
+    // 4. Collect and return outputs — erase from value_map_ so emplace
+    //    succeeds on the next run() call (move leaves a zombie key otherwise)
     std::unordered_map<std::string, Tensor> outputs;
-    for (const auto& name : g.output_names)
+    for (const auto& name : g.output_names) {
         outputs[name] = std::move(value_map_.at(name));
+        value_map_.erase(name);
+    }
     return outputs;
 }
 

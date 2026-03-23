@@ -1,14 +1,13 @@
 #include "data/mnist_loader.h"
+#include "eval/evaluator.h"
 #include "model/model.h"
 #include "runtime/executor.h"
-#include "tensor/tensor.h"
 #include <iostream>
-#include <memory>
-#include <unordered_map>
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
-              << " <model.onnx> <data-path> <labels_path> " << std::endl;
+              << " <model.onnx> <images_path> <labels_path>\n";
     return 1;
   }
 
@@ -20,10 +19,11 @@ int main(int argc, char *argv[]) {
                   .enable_profiling(false)
                   .build();
 
-  std::unique_ptr dataset =
-      std::make_unique<tinyinfer::MNISTDataset>(argv[2], argv[3]);
+  tinyinfer::MNISTDataset dataset(argv[2], argv[3]);
 
-  const auto &X = (*dataset)[0];
-  X.image.to_matlab("test.m");
+  auto evaluator = tinyinfer::Evaluator::Builder().build();
+  auto result    = evaluator.evaluate(*exec, dataset);
+  result.print();
+
   return 0;
 }

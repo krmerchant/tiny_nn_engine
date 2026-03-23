@@ -49,8 +49,11 @@ public:
             exec->precision_        = precision_;
             exec->enable_profiling_ = profiling_;
             cudaStreamCreate(&exec->stream_);
-            for (const auto& [name, tensor] : exec->model_->graph().initializers)
-                exec->value_map_[name] = tensor.clone();
+            for (const auto& [name, tensor] : exec->model_->graph().initializers) {
+                Tensor t = tensor.clone();
+                t.cuda();
+                exec->value_map_[name] = std::move(t);
+            }
             return exec;
         }
 
