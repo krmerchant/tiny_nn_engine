@@ -2,11 +2,12 @@
 #include "runtime/executor.h"
 #include "tensor/tensor.h"
 #include <iostream>
+#include <memory>
 #include <unordered_map>
-
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <model.onnx>\n";
+  if (argc < 4) {
+    std::cerr << "Usage: " << argv[0]
+              << " <model.onnx> <data-path> <labels_path> " << std::endl;
     return 1;
   }
   auto model = tinyinfer::Model::load(argv[1]);
@@ -17,15 +18,8 @@ int main(int argc, char *argv[]) {
                   .enable_profiling(false)
                   .build();
 
-  // dummy all-zeros input (1×784)
-  auto input = tinyinfer::Tensor({1, 784});
-  input.fill(0.f);
-  std::unordered_map<std::string, tinyinfer::Tensor> inputs;
-  inputs.emplace("input", std::move(input));
-  auto outputs = exec->run(std::move(inputs));
+  std::unique_ptr<IDataset> dataset =
+      std::make_unique<tinyinfer::MNISTDataset>(argv[2], argv[3]);
 
-  std::cout << "run() completed, " << outputs.size() << " output(s)\n";
-  for (const auto &it : outputs)
-    std::cout << "  \"" << it.first << "\" shape: " << it.second.shape_str() << "\n";
   return 0;
 }
