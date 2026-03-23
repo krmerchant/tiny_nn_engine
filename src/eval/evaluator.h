@@ -27,7 +27,7 @@ public:
         size_t batch_size_ = 1;
     };
 
-    EvalResult evaluate(Executor& executor,
+    EvalResult evaluate(IExecutor& executor,
                         const IDataset<MNISTSample>& dataset) const;
 
 private:

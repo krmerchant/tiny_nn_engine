@@ -32,7 +32,7 @@ void EvalResult::print() const {
 // Evaluator::evaluate
 // ---------------------------------------------------------------------------
 
-EvalResult Evaluator::evaluate(Executor &executor,
+EvalResult Evaluator::evaluate(IExecutor &executor,
                                const IDataset<MNISTSample> &dataset) const {
   EvalResult result;
 

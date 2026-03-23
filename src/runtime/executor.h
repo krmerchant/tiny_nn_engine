@@ -26,14 +26,16 @@ public:
     // Returns a map from ONNX output name → result tensor.
     virtual std::unordered_map<std::string, Tensor>
     run(std::unordered_map<std::string, Tensor> inputs) = 0;
+
+    virtual const Model& model_ref() const = 0;
 };
 inline IExecutor::~IExecutor() = default;
 
 // ---------------------------------------------------------------------------
-// Executor — GPU executor backed by a CUDA stream
+// GPUExecutor — GPU executor backed by a CUDA stream
 // ---------------------------------------------------------------------------
 
-class Executor : public IExecutor {
+class GPUExecutor : public IExecutor {
 public:
     class Builder {
     public:
@@ -41,10 +43,10 @@ public:
         Builder& precision(Precision p) { precision_ = p; return *this; }
         Builder& enable_profiling(bool v) { profiling_ = v; return *this; }
 
-        std::unique_ptr<Executor> build() {
+        std::unique_ptr<GPUExecutor> build() {
             if (!model_.has_value())
-                throw std::logic_error("Executor::Builder: model not set");
-            auto exec = std::unique_ptr<Executor>(new Executor());
+                throw std::logic_error("GPUExecutor::Builder: model not set");
+            auto exec = std::unique_ptr<GPUExecutor>(new GPUExecutor());
             exec->model_            = &model_->get();
             exec->precision_        = precision_;
             exec->enable_profiling_ = profiling_;
@@ -63,23 +65,59 @@ public:
         bool      profiling_ = false;
     };
 
-    ~Executor();
+    ~GPUExecutor();
 
     std::unordered_map<std::string, Tensor>
     run(std::unordered_map<std::string, Tensor> inputs) override;
 
-    const Model& model_ref() const { return *model_; }
+    const Model& model_ref() const override { return *model_; }
 
 private:
     friend class Builder;
-    Executor() = default;
+    GPUExecutor() = default;
 
     const Model*   model_  = nullptr;
     Precision      precision_ = Precision::FP32;
     bool           enable_profiling_ = false;
     cudaStream_t   stream_ = nullptr;
 
-    // Persistent intermediate activation map
+    std::unordered_map<std::string, Tensor> value_map_;
+};
+
+// ---------------------------------------------------------------------------
+// CPUExecutor — CPU-only executor (no CUDA required)
+// ---------------------------------------------------------------------------
+
+class CPUExecutor : public IExecutor {
+public:
+    class Builder {
+    public:
+        Builder& model(const Model& m) { model_ = std::cref(m); return *this; }
+
+        std::unique_ptr<CPUExecutor> build() {
+            if (!model_.has_value())
+                throw std::logic_error("CPUExecutor::Builder: model not set");
+            auto exec = std::unique_ptr<CPUExecutor>(new CPUExecutor());
+            exec->model_ = &model_->get();
+            for (const auto& [name, tensor] : exec->model_->graph().initializers)
+                exec->value_map_[name] = tensor.clone();  // stays on CPU
+            return exec;
+        }
+
+    private:
+        std::optional<std::reference_wrapper<const Model>> model_;
+    };
+
+    std::unordered_map<std::string, Tensor>
+    run(std::unordered_map<std::string, Tensor> inputs) override;
+
+    const Model& model_ref() const override { return *model_; }
+
+private:
+    friend class Builder;
+    CPUExecutor() = default;
+
+    const Model* model_ = nullptr;
     std::unordered_map<std::string, Tensor> value_map_;
 };
 
