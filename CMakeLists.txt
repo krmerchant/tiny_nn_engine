@@ -59,12 +59,16 @@ target_link_libraries(model_onnx_playground PRIVATE ${Protobuf_LIBRARIES} tinyin
 
 
 
-
-
-
 # --------------------------------------------------------------------------
 # Demo executable
 # --------------------------------------------------------------------------
+add_custom_target(tinyinfer_demo_default
+  COMMAND tinyinfer_demo  -m ../model_weights/mnist_fc.onnx -i ../tools/data/MNIST/raw/t10k-images-idx3-ubyte --labels ../tools/data/MNIST/raw/t10k-labels-idx1-ubyte 
+  DEPENDS tinyinfer_demo
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  COMMENT "Rnunning tinyinfer_demo_default with custom args"
+)
+
 add_executable(tinyinfer_demo src/main.cpp)
 target_link_libraries(tinyinfer_demo PRIVATE
     tinyinfer_eval
