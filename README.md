@@ -25,21 +25,32 @@ This application is assumed to run on a linux machine with a CUDA GPU. I've only
 
 Dependencies to install
 
-### Installing
+### Build
 
-* How/where to download your program
-* Any modifications needed to be made to files/folders
+Run CMake build command
+```  sh 
+  mkdir -p build && cd build
+  cmake .. -DCMAKE_BUILD_TYPE=Release
+  make -j$(nproc) tinyinfer_demo
+```
 
 ### Executing program
 
-* Generate a ONNX model
-```
+Generate a ONNX model
+``` sh
 cd tools/
 python3 generate_mnist_onnx.py --output mnist_fc.onnx --data-dir ./data --epochs 10
 ```
 
-	* Demo application to load model, data and run inference
+ Demo application to load model, data and run inference
+``` sh
+  ./build/tinyinfer_demo \
+    -m tools/mnist_fc.onnx \
+    -i tools/data/MNIST/raw/t10k-images-idx3-ubyte \
+    -l tools/data/MNIST/raw/t10k-labels-idx1-ubyte \
+    -b 64 # batch size to use for inference
 
+```
 ## Help
 
 Any advise for common problems or issues.
@@ -49,22 +60,15 @@ command to run if program contains helper info
 
 ## Authors
 
-Contributors names and contact info
-
-ex. Dominique Pizzie  
-ex. [@DomPizzie](https://twitter.com/dompizzie)
+* Komel Merchant 
 
 ## Version History
 
-* 0.2
-    * Various bug fixes and optimizations
-    * See [commit change]() or See [release history]()
-* 0.1
-    * Initial Release
+
 
 ## License
 
-This project is licensed under the [NAME HERE] License - see the LICENSE.md file for details
+This project is licensed under the AGPL License - see the LICENSE.md file for details
 
 ## Acknowledgments
 
