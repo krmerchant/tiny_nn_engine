@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.17)
+set(CMAKE_CXX_COMPILER g++)
+set(CMAKE_C_COMPILER gcc)
 project(tinyinfer LANGUAGES CXX CUDA)
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,7 +11,8 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # GTX 1650 → sm_75
-set(CMAKE_CUDA_ARCHITECTURES 75)
+# GTX 1080 → sm_61
+set(CMAKE_CUDA_ARCHITECTURES 75 61)
 
 # --------------------------------------------------------------------------
 # Dependencies
