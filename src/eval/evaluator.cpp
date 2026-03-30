@@ -1,9 +1,9 @@
 #include "eval/evaluator.h"
+#include "data/dataset_helpers.h"
 #include "graph/graph.h"
 #include <cstring>
 #include <iostream>
 #include <unordered_map>
-
 namespace tinyinfer {
 
 // ---------------------------------------------------------------------------
@@ -42,22 +42,15 @@ EvalResult Evaluator::evaluate(IExecutor &executor,
   const std::string &output_name = g.output_names[0];
 
   // 10×10 confusion matrix on CPU, zero-initialized
+  // TODO: Make this more portable ... this only works for particular classes
   result.confusion = Tensor({10, 10});
   std::memset(result.confusion.data_ptr(), 0, 100 * sizeof(float));
-
-  const int64_t feat = dataset[0].image.shape()[0]; // 784
 
   for (size_t i = 0; i < dataset.size(); i += batch_size_) {
     size_t n = std::min(batch_size_, dataset.size() - i);
 
-    // Stack n images into [n, feat]
-    Tensor batch({(int64_t)n, feat});
-    for (size_t j = 0; j < n; ++j)
-      std::memcpy(batch.data_ptr() + j * feat, dataset[i + j].image.data_ptr(),
-                  feat * sizeof(float));
-
     std::unordered_map<std::string, Tensor> inputs;
-    inputs[input_name] = std::move(batch);
+    inputs[input_name] = create_batch<MNISTSample>(dataset, i, n);
     auto outputs = executor.run(std::move(inputs));
 
     // Argmax each row of [n, 10] output
