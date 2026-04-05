@@ -21,9 +21,30 @@ The project is inspired at a high level by PyTorch. The primarily library compon
 
 ### Dependencies
 
-This application is assumed to run on a linux machine with a CUDA GPU. I've only tested on the following NVIDIA archetecutres: 
+This application is assumed to run on a Linux machine with a CUDA-capable GPU. Tested on NVIDIA sm_75 (GTX 1650) and sm_61 (GTX 1080).
 
-Dependencies to install
+**Build requirements:**
+- CMake ≥ 3.17
+- GCC (C++17 for host code)
+- CUDA Toolkit ≥ 10.1 (nvcc; device code compiled as C++14)
+- Protobuf (system install, e.g. `libprotobuf-dev` + `protobuf-compiler`)
+- GoogleTest — fetched automatically via CMake `FetchContent` (requires internet access at configure time)
+
+**Python requirements** (for ONNX model generation only):
+- Python ≥ 3.8
+- `torch`, `torchvision` (PyTorch)
+- `onnx`
+- `click`
+
+Install Python dependencies:
+```sh
+pip install torch torchvision onnx click
+```
+
+Install system dependencies (Debian/Ubuntu):
+```sh
+sudo apt install cmake build-essential libprotobuf-dev protobuf-compiler
+```
 
 ### Build
 
