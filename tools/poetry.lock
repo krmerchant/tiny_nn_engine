@@ -288,6 +288,23 @@ typing_extensions = ">=4.7.1"
 reference = ["pillow"]
 
 [[package]]
+name = "onnx2torch"
+version = "1.5.15"
+description = "ONNX to PyTorch converter"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+numpy = ">=1.16.4"
+onnx = ">=1.9.0"
+torch = ">=1.8.0"
+torchvision = ">=0.9.0"
+
+[package.extras]
+dev = ["pytest", "black", "isort", "pylint", "pre-commit", "onnxruntime", "pillow", "requests", "googledrivedownloader"]
+
+[[package]]
 name = "pillow"
 version = "12.2.0"
 description = "Python Imaging Library (fork)"
@@ -401,7 +418,7 @@ python-versions = ">=3.9"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "4efa07645048c843497b085800cf1457c4dd1c437edd619a20b59596413d8165"
+content-hash = "c14e5a2a1ba04d2c7e584340e12db5052dc40fda74b6cd3703e3976baffee891"
 
 [metadata.files]
 click = []
@@ -429,6 +446,7 @@ nvidia-nccl-cu12 = []
 nvidia-nvjitlink-cu12 = []
 nvidia-nvtx-cu12 = []
 onnx = []
+onnx2torch = []
 pillow = []
 protobuf = []
 sympy = []

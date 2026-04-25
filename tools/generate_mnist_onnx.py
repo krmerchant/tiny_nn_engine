@@ -6,6 +6,7 @@ which matches the TinyNNEngine ONNX parser expectations.
 """
 
 import click
+import onnx2torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -66,7 +67,40 @@ def evaluate(model: TrainMLP, loader: DataLoader, device: torch.device) -> float
     return correct / len(loader.dataset)
 
 
-@click.command()
+@click.group()
+def cli(): 
+    pass
+
+
+
+@cli.command()
+@click.option("--onnx", default="mnist_fc.onnx", show_default=True,
+              help="Path to write the exported ONNX file.")
+@click.option("--data-dir", default="data/", show_default=True,
+              help="Directory for MNIST dataset (downloaded if absent).")
+@click.option("--batch-size", default=256, show_default=True,
+              help="Batch size for evaluation.")
+@click.option("--split", default="test", type=click.Choice(["train", "test"]), show_default=True,
+              help="Dataset split to evaluate on.")
+def test(onnx: str, data_dir: str, batch_size: int, split: str) -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    transform = transforms.ToTensor()
+    ds = datasets.MNIST(data_dir, train=(split == "train"), download=True, transform=transform)
+    test_loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2)
+
+    model = onnx2torch.convert(onnx).to(device)
+    model.eval()
+
+    test_acc = evaluate(model, test_loader, device)
+
+    print(f"\nFinal test accuracy: {test_acc*100:.2f}%")
+    if test_acc < 0.97:
+        print("WARNING: accuracy below 97% — consider more epochs or a lower learning rate.")
+
+
+@cli.command()
 @click.option("--output", default="mnist_fc.onnx", show_default=True,
               help="Path to write the exported ONNX file.")
 @click.option("--data-dir", default="data/", show_default=True,
@@ -77,7 +111,7 @@ def evaluate(model: TrainMLP, loader: DataLoader, device: torch.device) -> float
               help="Learning rate for Adam optimizer.")
 @click.option("--batch-size", default=256, show_default=True,
               help="Training batch size.")
-def main(output: str, data_dir: str, epochs: int, lr: float, batch_size: int) -> None:
+def training(output: str, data_dir: str, epochs: int, lr: float, batch_size: int) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -118,4 +152,4 @@ def main(output: str, data_dir: str, epochs: int, lr: float, batch_size: int) ->
 
 
 if __name__ == "__main__":
-    main()
+    cli()

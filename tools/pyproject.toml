@@ -12,6 +12,7 @@ torch = ">=2.0,<3.0"
 torchvision = ">=0.15,<1.0"
 onnx = ">=1.14,<2.0"
 click = ">=8.0,<9.0"
+onnx2torch = "^1.5.15"
 
 [tool.poetry.scripts]
 generate-onnx = "generate_mnist_onnx:main"
