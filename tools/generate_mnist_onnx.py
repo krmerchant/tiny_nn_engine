@@ -5,6 +5,8 @@ with weight names fc1.weight, fc1.bias, fc2.weight, fc2.bias,
 which matches the TinyNNEngine ONNX parser expectations.
 """
 
+import time
+
 import click
 import onnx2torch
 import torch
@@ -75,7 +77,7 @@ def cli():
 
 @cli.command()
 @click.option("--onnx", default="mnist_fc.onnx", show_default=True,
-              help="Path to write the exported ONNX file.")
+              help="Path to the ONNX model file to evaluate.")
 @click.option("--data-dir", default="data/", show_default=True,
               help="Directory for MNIST dataset (downloaded if absent).")
 @click.option("--batch-size", default=256, show_default=True,
@@ -93,9 +95,13 @@ def test(onnx: str, data_dir: str, batch_size: int, split: str) -> None:
     model = onnx2torch.convert(onnx).to(device)
     model.eval()
 
+    t0 = time.perf_counter()
     test_acc = evaluate(model, test_loader, device)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
 
+    n = len(ds)
     print(f"\nFinal test accuracy: {test_acc*100:.2f}%")
+    print(f"End-to-end latency: {elapsed_ms:.1f} ms total  |  {elapsed_ms/n:.3f} ms/sample  ({n} samples)")
     if test_acc < 0.97:
         print("WARNING: accuracy below 97% — consider more epochs or a lower learning rate.")
 
