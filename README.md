@@ -13,9 +13,51 @@ The project is inspired at a high level by PyTorch. The primarily library compon
 * `Executor` class
 	* This is responsible for iterating through the `Model`'s `Graph` and executing each operation
 * `Evaluator` class 
-	* This is
+	* Runs the model over a dataset in batches, computes accuracy, and builds a confusion matrix.
 
 
+
+## Architecture
+
+```mermaid
+flowchart TD
+    ONNX[ONNX File]
+
+    subgraph Model Layer
+        ONNX -->|parsed by| OnnxParser
+        OnnxParser -->|builds| Model
+        Model -->|owns| Graph
+        Graph -->|sorted list of| Node
+        Graph -->|weight| Initializers[Initializers\nweight Tensors]
+    end
+
+    subgraph Executor Layer
+        Model -->|referenced by| IExecutor
+        IExecutor -->|GPU impl| GPUExecutor
+        IExecutor -->|CPU impl| CPUExecutor
+        GPUExecutor -->|uses CUDA stream +| Profiler
+    end
+
+    subgraph Op Dispatch
+        IExecutor -->|per node, looks up| OpRegistry
+        OpRegistry -->|instantiates| OpKernel
+        OpKernel -->|reads & writes| Tensor
+    end
+
+    subgraph Tensor Layer
+        Tensor -->|dispatches to| TensorStorage
+        TensorStorage -->|CPU impl| CPUStorage
+        TensorStorage -->|GPU impl| GPUStorage
+        GPUStorage -->|GEMM via| cuBLAS
+        GPUStorage -->|relu / softmax via| CUDAKernels[CUDA Kernels]
+    end
+
+    subgraph Evaluation
+        MNISTDataset -->|batches samples into Tensors| Evaluator
+        IExecutor -->|run| Evaluator
+        Evaluator -->|produces| EvalResult[EvalResult\naccuracy + confusion matrix]
+    end
+```
 
 ## Getting Started
 
@@ -49,7 +91,7 @@ sudo apt install cmake build-essential libprotobuf-dev protobuf-compiler
 ### Build
 
 Run CMake build command
-```  sh 
+```sh
   mkdir -p build && cd build
   cmake .. -DCMAKE_BUILD_TYPE=Release
   make -j$(nproc) tinyinfer_demo
@@ -58,13 +100,13 @@ Run CMake build command
 ### Executing program
 
 Generate a ONNX model
-``` sh
+```sh
 cd tools/
-python3 generate_mnist_onnx.py --output mnist_fc.onnx --data-dir ./data --epochs 10
+poetry run python generate_mnist_onnx.py training --output mnist_fc.onnx --data-dir ./data --epochs 5
 ```
 
  Demo application to load model, data and run inference
-``` sh
+```sh
   ./build/tinyinfer_demo \
     -m tools/mnist_fc.onnx \
     -i tools/data/MNIST/raw/t10k-images-idx3-ubyte \
@@ -72,20 +114,9 @@ python3 generate_mnist_onnx.py --output mnist_fc.onnx --data-dir ./data --epochs
     -b 64 # batch size to use for inference
 
 ```
-## Help
-
-Any advise for common problems or issues.
-```
-command to run if program contains helper info
-```
-
 ## Authors
 
 * Komel Merchant 
-
-## Version History
-
-
 
 ## License
 
@@ -93,9 +124,4 @@ This project is licensed under the AGPL License - see the LICENSE.md file for de
 
 ## Acknowledgments
 
-Inspiration, code snippets, etc.
-* [awesome-readme](https://github.com/matiassingers/awesome-readme)
-* [PurpleBooth](https://gist.github.com/PurpleBooth/109311bb0361f32d87a2)
-* [dbader](https://github.com/dbader/readme-template)
-* [zenorocha](https://gist.github.com/zenorocha/4526327)
-* [fvcproductions](https://gist.github.com/fvcproductions/1bfc2d4aecb01a834b46)
+* Inspired by [PyTorch](https://pytorch.org/)
